@@ -1,0 +1,119 @@
+"""API tests for the analysis endpoints (mock provider, inline execution)."""
+
+from __future__ import annotations
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+from app.main import app
+from app.services import analysis_runner
+
+
+@pytest_asyncio.fixture
+async def client(monkeypatch):
+    # Force synchronous inline execution so results are ready after POST.
+    async def _inline_enqueue(job_id: str) -> str:
+        await analysis_runner.run_job(job_id)
+        return "inline-sync"
+
+    monkeypatch.setattr("app.api.analyses.queue.enqueue", _inline_enqueue)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+async def test_health(client):
+    r = await client.get("/api/v1/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+
+
+async def test_create_and_get_results(client):
+    r = await client.post("/api/v1/analyses", json={"username": "@sample_user", "post_limit": 60})
+    assert r.status_code == 202, r.text
+    job = r.json()
+    assert job["username"] == "sample_user"
+    job_id = job["id"]
+
+    # Completed via inline sync execution.
+    r2 = await client.get(f"/api/v1/analyses/{job_id}")
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "completed"
+
+    r3 = await client.get(f"/api/v1/analyses/{job_id}/results")
+    assert r3.status_code == 200
+    body = r3.json()
+    assert body["activity_metrics"]["post_count"] > 0
+    assert body["data_quality"]["data_source"] == "mock"
+    assert body["data_quality"]["is_mock"] is True
+    assert "headline" in body["summary"]
+
+
+async def test_invalid_username_rejected(client):
+    r = await client.post("/api/v1/analyses", json={"username": "bad handle!"})
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "INVALID_USERNAME"
+
+
+async def test_post_limit_bounds(client):
+    r = await client.post("/api/v1/analyses", json={"username": "user", "post_limit": 999999})
+    assert r.status_code == 422  # exceeds configured max
+
+
+async def test_protected_profile_fails_job(client):
+    r = await client.post("/api/v1/analyses", json={"username": "protected_demo"})
+    assert r.status_code == 202
+    job_id = r.json()["id"]
+    r2 = await client.get(f"/api/v1/analyses/{job_id}")
+    assert r2.json()["status"] == "failed"
+    assert r2.json()["error_code"] == "PROFILE_PROTECTED"
+
+
+async def test_empty_profile_no_posts(client):
+    r = await client.post("/api/v1/analyses", json={"username": "empty_demo"})
+    job_id = r.json()["id"]
+    r2 = await client.get(f"/api/v1/analyses/{job_id}")
+    assert r2.json()["status"] == "failed"
+    assert r2.json()["error_code"] == "NO_POSTS_AVAILABLE"
+
+
+async def test_not_found_profile(client):
+    r = await client.post("/api/v1/analyses", json={"username": "notfound_demo"})
+    job_id = r.json()["id"]
+    r2 = await client.get(f"/api/v1/analyses/{job_id}")
+    assert r2.json()["status"] == "failed"
+    assert r2.json()["error_code"] == "PROFILE_NOT_FOUND"
+
+
+async def test_list_and_delete(client):
+    await client.post("/api/v1/analyses", json={"username": "user_one"})
+    await client.post("/api/v1/analyses", json={"username": "user_two"})
+    lst = await client.get("/api/v1/analyses?page=1&page_size=10")
+    assert lst.status_code == 200
+    assert lst.json()["total"] >= 2
+
+    first_id = lst.json()["items"][0]["id"]
+    d = await client.delete(f"/api/v1/analyses/{first_id}")
+    assert d.status_code == 204
+    g = await client.get(f"/api/v1/analyses/{first_id}")
+    assert g.status_code == 404
+
+
+async def test_refresh_creates_new_job(client):
+    r = await client.post("/api/v1/analyses", json={"username": "refresh_me"})
+    old_id = r.json()["id"]
+    rf = await client.post(f"/api/v1/analyses/{old_id}/refresh")
+    assert rf.status_code == 202
+    assert rf.json()["id"] != old_id
+    assert rf.json()["username"] == "refresh_me"
+
+
+async def test_progress_endpoint(client):
+    r = await client.post("/api/v1/analyses", json={"username": "progress_user"})
+    job_id = r.json()["id"]
+    p = await client.get(f"/api/v1/analyses/{job_id}/progress")
+    assert p.status_code == 200
+    assert p.json()["progress"] == 100
+    assert p.json()["status"] == "completed"

@@ -21,6 +21,9 @@ httpx==0.28.1
 pandas==2.2.3
 numpy==2.2.1
 
+# --- Timezone data (zoneinfo on Windows / slim images) ---
+tzdata==2024.2
+
 # --- NLP ---
 vaderSentiment==3.3.2
 langdetect==1.0.9
