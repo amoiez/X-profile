@@ -12,7 +12,7 @@ Milestone 3 without changing this orchestration.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import METHODOLOGY_VERSION
 from app.analytics.activity import compute_activity_metrics
@@ -174,7 +174,7 @@ async def run_job(job_id: str) -> None:
             job.status = JobStatus.COMPLETED.value
             job.current_stage = STAGE_DONE
             job.progress = STAGE_PROGRESS[STAGE_DONE]
-            job.completed_at = datetime.now(timezone.utc)
+            job.completed_at = datetime.now(UTC)
             await session.commit()
             logger.info("run_job_done", job_id=job_id, posts=len(posts))
 
@@ -196,8 +196,8 @@ async def run_job(job_id: str) -> None:
 
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _build_data_quality(profile, posts, activity, data_source: str) -> dict:
@@ -216,7 +216,7 @@ def _build_data_quality(profile, posts, activity, data_source: str) -> dict:
         "methodology_version": METHODOLOGY_VERSION,
         "data_source": data_source,
         "is_mock": data_source == "mock",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "low_confidence": n < settings.low_confidence_post_threshold,
         "low_confidence_threshold": settings.low_confidence_post_threshold,
         "missing_metrics": [],

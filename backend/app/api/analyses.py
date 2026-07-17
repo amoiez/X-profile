@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_optional_user
 from app.core.errors import AppError, ErrorCode
+from app.core.limiter import ANALYSIS_LIMIT, limiter
 from app.database.session import get_session
-from app.models.analysis_job import JobStatus
+from app.models import User
+from app.models.analysis_job import AnalysisJob, JobStatus
 from app.schemas.analysis import (
     AnalysisCreateRequest,
     JobSummary,
@@ -23,10 +26,22 @@ from app.services import job_service, queue, report_service
 router = APIRouter(prefix="/analyses", tags=["analyses"])
 
 
+def _authorize(job: AnalysisJob, user: User | None) -> None:
+    """Owned jobs are only visible to their owner; anonymous jobs are open.
+
+    Returns 404 (not 403) for someone else's job so ownership isn't leaked.
+    """
+    if job.user_id is not None and (user is None or user.id != job.user_id):
+        raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+
+
 @router.post("", response_model=JobSummary, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(ANALYSIS_LIMIT)
 async def create_analysis(
+    request: Request,
     payload: AnalysisCreateRequest,
     session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> JobSummary:
     from app.core.config import settings
 
@@ -37,6 +52,7 @@ async def create_analysis(
         post_limit=payload.post_limit,
         tz=payload.timezone,
         data_source=data_source,
+        user_id=user.id if user else None,
     )
     await queue.enqueue(job.id)
     return JobSummary.model_validate(job)
@@ -44,21 +60,27 @@ async def create_analysis(
 
 @router.get("/{job_id}", response_model=JobSummary)
 async def get_analysis(
-    job_id: str, session: AsyncSession = Depends(get_session)
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> JobSummary:
     job = await job_service.get_job(session, job_id)
     if job is None:
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(job, user)
     return JobSummary.model_validate(job)
 
 
 @router.get("/{job_id}/progress", response_model=ProgressResponse)
 async def get_progress(
-    job_id: str, session: AsyncSession = Depends(get_session)
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> ProgressResponse:
     job = await job_service.get_job(session, job_id)
     if job is None:
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(job, user)
     return ProgressResponse(
         id=job.id,
         status=job.status,
@@ -71,11 +93,14 @@ async def get_progress(
 
 @router.get("/{job_id}/results", response_model=ResultsResponse)
 async def get_results(
-    job_id: str, session: AsyncSession = Depends(get_session)
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> ResultsResponse:
     job = await job_service.get_job(session, job_id)
     if job is None:
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(job, user)
     if job.status == JobStatus.FAILED.value:
         raise AppError(
             ErrorCode(job.error_code) if job.error_code in ErrorCode._value2member_map_
@@ -122,8 +147,15 @@ async def list_analyses(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> PaginatedJobs:
-    rows, total = await job_service.list_jobs(session, page=page, page_size=page_size)
+    rows, total = await job_service.list_jobs(
+        session,
+        owner_id=user.id if user else None,
+        only_unowned=user is None,
+        page=page,
+        page_size=page_size,
+    )
     return PaginatedJobs(
         items=[JobSummary.model_validate(r) for r in rows],
         total=total,
@@ -137,7 +169,12 @@ async def download_report(
     job_id: str,
     force: bool = Query(False),
     session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> FileResponse:
+    job = await job_service.get_job(session, job_id)
+    if job is None:
+        raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(job, user)
     path = await report_service.generate_pdf_for_job(session, job_id, force=force)
     if not os.path.exists(path):
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
@@ -150,21 +187,28 @@ async def download_report(
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_analysis(
-    job_id: str, session: AsyncSession = Depends(get_session)
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> Response:
-    ok = await job_service.delete_job(session, job_id)
-    if not ok:
+    job = await job_service.get_job(session, job_id)
+    if job is None:
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(job, user)
+    await job_service.delete_job(session, job_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{job_id}/refresh", response_model=JobSummary, status_code=status.HTTP_202_ACCEPTED)
 async def refresh_analysis(
-    job_id: str, session: AsyncSession = Depends(get_session)
+    job_id: str,
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
 ) -> JobSummary:
     old = await job_service.get_job(session, job_id)
     if old is None:
         raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    _authorize(old, user)
     new_job = await job_service.create_job(
         session,
         username=old.username,

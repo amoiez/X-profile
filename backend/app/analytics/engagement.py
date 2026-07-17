@@ -12,7 +12,7 @@ less time to accumulate engagement than older ones.
 from __future__ import annotations
 
 import statistics
-from datetime import datetime, timezone
+from datetime import UTC
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.providers.base import ProviderPost
@@ -90,7 +90,7 @@ def compute_engagement_metrics(
 
     # By content type.
     type_eng: dict[str, list[int]] = {}
-    for p, e in zip(posts, eng):
+    for p, e in zip(posts, eng, strict=True):
         type_eng.setdefault(p.media_type, []).append(e)
     by_content_type = sorted(
         (
@@ -106,8 +106,8 @@ def compute_engagement_metrics(
     wd_cnt = [0] * 7
     hr_sum = [0.0] * 24
     hr_cnt = [0] * 24
-    for p, e in zip(posts, eng):
-        dt = p.created_at if p.created_at.tzinfo else p.created_at.replace(tzinfo=timezone.utc)
+    for p, e in zip(posts, eng, strict=True):
+        dt = p.created_at if p.created_at.tzinfo else p.created_at.replace(tzinfo=UTC)
         lt = dt.astimezone(tz)
         wd_sum[lt.weekday()] += e
         wd_cnt[lt.weekday()] += 1

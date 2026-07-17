@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.analytics.activity import ActivityConfig, compute_activity_metrics
 from app.providers.base import ProviderPost
@@ -18,7 +18,7 @@ def test_empty_posts_returns_safe_zeroed_metrics():
 
 
 def test_rates_and_span():
-    base = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
     # 10 posts, one per day => ~1 post/day over 9 days span.
     posts = [_post(base + timedelta(days=i), pid=str(i)) for i in range(10)]
     m = compute_activity_metrics(posts, tz_name="UTC")
@@ -29,7 +29,7 @@ def test_rates_and_span():
 
 
 def test_median_interval_and_longest_gap():
-    base = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
     times = [base, base + timedelta(minutes=10), base + timedelta(minutes=20),
              base + timedelta(hours=5)]
     posts = [_post(t, pid=str(i)) for i, t in enumerate(times)]
@@ -41,7 +41,7 @@ def test_median_interval_and_longest_gap():
 
 def test_timezone_shifts_hour_distribution():
     # 03:00 UTC == 08:00 in Asia/Karachi (+5)
-    dt = datetime(2026, 3, 10, 3, 0, tzinfo=timezone.utc)
+    dt = datetime(2026, 3, 10, 3, 0, tzinfo=UTC)
     posts = [_post(dt, pid="1")]
     utc = compute_activity_metrics(posts, tz_name="UTC")
     kar = compute_activity_metrics(posts, tz_name="Asia/Karachi")
@@ -50,13 +50,13 @@ def test_timezone_shifts_hour_distribution():
 
 
 def test_invalid_timezone_falls_back_to_utc():
-    dt = datetime(2026, 3, 10, 3, 0, tzinfo=timezone.utc)
+    dt = datetime(2026, 3, 10, 3, 0, tzinfo=UTC)
     m = compute_activity_metrics([_post(dt)], tz_name="Not/AZone")
     assert m["most_active_hour"]["hour"] == 3
 
 
 def test_composition_percentages():
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     posts = (
         [_post(base + timedelta(minutes=i), "original", str(i)) for i in range(6)]
         + [_post(base + timedelta(minutes=100 + i), "reply", "r%d" % i) for i in range(2)]
@@ -69,7 +69,7 @@ def test_composition_percentages():
 
 
 def test_burst_detection():
-    base = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
     # 6 posts within 10 minutes -> one burst (min 5 within 60m)
     burst_posts = [_post(base + timedelta(minutes=i * 2), pid=f"b{i}") for i in range(6)]
     # then a lone post much later
@@ -81,14 +81,14 @@ def test_burst_detection():
 
 
 def test_no_burst_when_spread_out():
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     posts = [_post(base + timedelta(hours=i * 3), pid=str(i)) for i in range(6)]
     m = compute_activity_metrics(posts, tz_name="UTC")
     assert m["burst_count"] == 0
 
 
 def test_single_post_no_gaps():
-    m = compute_activity_metrics([_post(datetime(2026, 1, 1, tzinfo=timezone.utc))], "UTC")
+    m = compute_activity_metrics([_post(datetime(2026, 1, 1, tzinfo=UTC))], "UTC")
     assert m["post_count"] == 1
     assert m["median_minutes_between_posts"] is None
     assert m["longest_inactive_hours"] is None

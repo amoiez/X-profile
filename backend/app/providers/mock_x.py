@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.core.errors import (
     ProfileNotFoundError,
@@ -58,7 +58,7 @@ class MockXProvider(BaseXProvider):
     name = "mock"
 
     def __init__(self, now: datetime | None = None) -> None:
-        self._now = now or datetime.now(timezone.utc)
+        self._now = now or datetime.now(UTC)
 
     async def get_user_by_username(self, username: str) -> ProviderProfile:
         key = username.lower()

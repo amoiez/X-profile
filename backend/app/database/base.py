@@ -7,7 +7,7 @@ and SQLite (JSON) for local development and tests.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -53,7 +53,7 @@ def generate_uuid() -> str:
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def uuid_pk():

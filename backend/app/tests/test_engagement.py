@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.analytics.engagement import compute_engagement_metrics
 from app.providers.base import ProviderPost
@@ -7,7 +7,7 @@ from app.providers.base import ProviderPost
 def _p(pid, likes=0, replies=0, reposts=0, quotes=0, media="none", when=None):
     return ProviderPost(
         post_id=pid, text="x",
-        created_at=when or datetime(2026, 1, 1, 12, tzinfo=timezone.utc),
+        created_at=when or datetime(2026, 1, 1, 12, tzinfo=UTC),
         like_count=likes, reply_count=replies, repost_count=reposts,
         quote_count=quotes, media_type=media,
     )
@@ -60,7 +60,7 @@ def test_by_content_type():
 
 def test_by_hour_timezone_aware():
     # 03:00 UTC -> 08:00 Asia/Karachi
-    post = _p("1", likes=10, when=datetime(2026, 3, 1, 3, tzinfo=timezone.utc))
+    post = _p("1", likes=10, when=datetime(2026, 3, 1, 3, tzinfo=UTC))
     m = compute_engagement_metrics([post], tz_name="Asia/Karachi")
     assert m["by_hour"][8] == 10.0
     assert m["by_hour"][3] == 0.0

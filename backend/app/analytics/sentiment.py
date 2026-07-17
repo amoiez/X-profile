@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC
 
 from langdetect import DetectorFactory, LangDetectException, detect
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -72,8 +72,8 @@ def compute_sentiment_metrics(posts: list[ProviderPost]) -> dict:
         counts[label] += 1
         compounds.append(score)
 
-        dt = p.created_at if p.created_at.tzinfo else p.created_at.replace(tzinfo=timezone.utc)
-        by_day[dt.astimezone(timezone.utc).date().isoformat()].append(score)
+        dt = p.created_at if p.created_at.tzinfo else p.created_at.replace(tzinfo=UTC)
+        by_day[dt.astimezone(UTC).date().isoformat()].append(score)
         for h in (p.hashtags or []):
             by_hashtag[h.lower()].append(score)
 

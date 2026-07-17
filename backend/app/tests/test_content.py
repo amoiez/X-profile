@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.analytics.content import compute_content_metrics
 from app.providers.base import ProviderPost
@@ -6,7 +6,7 @@ from app.providers.base import ProviderPost
 
 def _p(text, pid="1", hashtags=None, mentions=None, urls=None, media="none"):
     return ProviderPost(
-        post_id=pid, text=text, created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        post_id=pid, text=text, created_at=datetime(2026, 1, 1, tzinfo=UTC),
         hashtags=hashtags or [], mentions=mentions or [], urls=urls or [], media_type=media,
     )
 

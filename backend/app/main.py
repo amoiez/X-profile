@@ -14,12 +14,18 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app import __version__
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.errors import AppError, ErrorCode
+from app.core.limiter import limiter
 from app.core.logging import configure_logging, get_logger
+
+# Maximum accepted request body (bytes). Nginx also enforces this at the edge.
+MAX_BODY_BYTES = 1_000_000
 
 configure_logging()
 logger = get_logger("app")
@@ -47,6 +53,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting (slowapi) — disabled automatically in tests.
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],
@@ -54,6 +64,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "error": {
+                    "code": ErrorCode.VALIDATION_ERROR.value,
+                    "message": "Request body too large.",
+                    "request_id": request.headers.get("x-request-id"),
+                }
+            },
+        )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -77,6 +104,17 @@ def _error_response(code: str, message: str, status: int, request: Request) -> J
     return JSONResponse(
         status_code=status,
         content={"error": {"code": code, "message": message, "request_id": request_id}},
+    )
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    logger.info("rate_limited", path=request.url.path)
+    return _error_response(
+        ErrorCode.RATE_LIMITED.value,
+        "Too many requests. Please try again later.",
+        429,
+        request,
     )
 
 

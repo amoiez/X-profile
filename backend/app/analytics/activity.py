@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.providers.base import ProviderPost
@@ -44,8 +44,8 @@ def _resolve_tz(tz_name: str) -> ZoneInfo:
 
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def compute_activity_metrics(

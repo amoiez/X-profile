@@ -7,15 +7,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api import health
+from app.api import admin, analyses, auth, health
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health.router)
-
-# Analysis routes registered here in Milestone 2.
-try:  # pragma: no cover - optional until M2 lands
-    from app.api import analyses
-
-    api_router.include_router(analyses.router)
-except ImportError:
-    pass
+api_router.include_router(auth.router)
+api_router.include_router(analyses.router)
+api_router.include_router(admin.router)

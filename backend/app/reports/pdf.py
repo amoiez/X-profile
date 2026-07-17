@@ -10,7 +10,7 @@ are loaded), avoiding SSRF and keeping generation deterministic and offline.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.shapes import Drawing, Rect, String
@@ -225,7 +225,8 @@ def generate_report_pdf(report: dict, output_path: str) -> str:
             ("Avg likes / replies / reposts",
              f"{avg.get('likes', 0)} / {avg.get('replies', 0)} / {avg.get('reposts', 0)}"),
             ("Approx engagement rate",
-             f"{engagement.get('approx_engagement_rate')}%" if engagement.get("approx_engagement_rate") is not None else "—"),
+             (f"{engagement.get('approx_engagement_rate')}%"
+              if engagement.get("approx_engagement_rate") is not None else "—")),
             ("Total engagement", _num(engagement.get("total_engagement"))),
         ]))
         story.append(Paragraph(engagement.get("time_window_note", ""), s["XSmall"]))

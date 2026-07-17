@@ -20,6 +20,7 @@ os.environ.setdefault(
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
 
 from app.database.base import Base  # noqa: E402
 from app.database.session import engine  # noqa: E402
@@ -33,6 +34,22 @@ async def _prepare_db():
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def client(monkeypatch):
+    """API client that runs analysis jobs inline (synchronously) for tests."""
+    from app.main import app
+    from app.services import analysis_runner
+
+    async def _inline_enqueue(job_id: str) -> str:
+        await analysis_runner.run_job(job_id)
+        return "inline-sync"
+
+    monkeypatch.setattr("app.api.analyses.queue.enqueue", _inline_enqueue)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
 @pytest.fixture(scope="session", autouse=True)

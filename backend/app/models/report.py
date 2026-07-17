@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database.base import Base, GUID, uuid_pk, utcnow
+from app.database.base import GUID, Base, utcnow, uuid_pk
 
 
 class Report(Base):
@@ -26,4 +26,4 @@ class Report(Base):
         DateTime(timezone=True), default=utcnow, nullable=False
     )
 
-    job: Mapped["AnalysisJob"] = relationship(back_populates="reports")  # noqa: F821
+    job: Mapped[AnalysisJob] = relationship(back_populates="reports")  # noqa: F821

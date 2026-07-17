@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.analytics.sentiment import compute_sentiment_metrics
 from app.providers.base import ProviderPost
@@ -7,7 +7,7 @@ from app.providers.base import ProviderPost
 def _p(text, lang="en", pid="1", when=None, hashtags=None):
     return ProviderPost(
         post_id=pid, text=text, lang=lang,
-        created_at=when or datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=when or datetime(2026, 1, 1, tzinfo=UTC),
         hashtags=hashtags or [],
     )
 
@@ -49,7 +49,7 @@ def test_deterministic():
 
 
 def test_trend_by_day():
-    d0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    d0 = datetime(2026, 1, 1, tzinfo=UTC)
     posts = [
         _p("great day", pid="1", when=d0),
         _p("awful day", pid="2", when=d0),

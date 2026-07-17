@@ -9,8 +9,8 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import (
-    Base,
     GUID,
+    Base,
     created_at_col,
     uuid_pk,
 )
@@ -64,11 +64,11 @@ class AnalysisJob(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User | None"] = relationship(back_populates="jobs")  # noqa: F821
-    profile: Mapped["XProfile | None"] = relationship(back_populates="jobs")  # noqa: F821
-    result: Mapped["AnalysisResult | None"] = relationship(  # noqa: F821
+    user: Mapped[User | None] = relationship(back_populates="jobs")  # noqa: F821
+    profile: Mapped[XProfile | None] = relationship(back_populates="jobs")  # noqa: F821
+    result: Mapped[AnalysisResult | None] = relationship(  # noqa: F821
         back_populates="job", cascade="all, delete-orphan", uselist=False
     )
-    reports: Mapped[list["Report"]] = relationship(  # noqa: F821
+    reports: Mapped[list[Report]] = relationship(  # noqa: F821
         back_populates="job", cascade="all, delete-orphan"
     )

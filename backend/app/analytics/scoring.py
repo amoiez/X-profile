@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app import METHODOLOGY_VERSION
 from app.providers.base import ProviderPost
@@ -64,7 +64,7 @@ def _clamp01(x: float) -> float:
 
 
 def _as_utc(dt: datetime) -> datetime:
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _component(key, label, points, max_points, explanation, signals=None) -> dict:

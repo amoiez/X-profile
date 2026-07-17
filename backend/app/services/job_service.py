@@ -6,7 +6,7 @@ Thin async data-access layer over SQLAlchemy. All queries go through the ORM
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,7 +54,8 @@ async def get_result(session: AsyncSession, job_id: str) -> AnalysisResult | Non
 async def list_jobs(
     session: AsyncSession,
     *,
-    user_id: str | None = None,
+    owner_id: str | None = None,
+    only_unowned: bool = False,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[AnalysisJob], int]:
@@ -63,9 +64,12 @@ async def list_jobs(
 
     base = select(AnalysisJob)
     count_q = select(func.count()).select_from(AnalysisJob)
-    if user_id is not None:
-        base = base.where(AnalysisJob.user_id == user_id)
-        count_q = count_q.where(AnalysisJob.user_id == user_id)
+    if owner_id is not None:
+        base = base.where(AnalysisJob.user_id == owner_id)
+        count_q = count_q.where(AnalysisJob.user_id == owner_id)
+    elif only_unowned:
+        base = base.where(AnalysisJob.user_id.is_(None))
+        count_q = count_q.where(AnalysisJob.user_id.is_(None))
 
     total = (await session.execute(count_q)).scalar_one()
     rows = (
@@ -97,7 +101,7 @@ async def update_progress(
     job.progress = progress
     if job.status == JobStatus.PENDING.value:
         job.status = JobStatus.RUNNING.value
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = datetime.now(UTC)
     await session.commit()
 
 
@@ -110,7 +114,7 @@ async def mark_failed(
     job.status = JobStatus.FAILED.value
     job.error_code = code
     job.error_message = message[:512]
-    job.completed_at = datetime.now(timezone.utc)
+    job.completed_at = datetime.now(UTC)
     await session.commit()
 
 
@@ -121,7 +125,7 @@ async def upsert_profile(
         select(XProfile).where(XProfile.username == profile.username)
     )
     row = res.scalar_one_or_none()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if row is None:
         row = XProfile(
             platform_user_id=profile.platform_user_id,

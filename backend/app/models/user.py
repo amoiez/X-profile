@@ -35,6 +35,6 @@ class User(Base):
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
 
-    jobs: Mapped[list["AnalysisJob"]] = relationship(  # noqa: F821
+    jobs: Mapped[list[AnalysisJob]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.analytics.activity import compute_activity_metrics
 from app.analytics.content import compute_content_metrics
@@ -7,7 +7,7 @@ from app.providers.base import ProviderPost
 
 
 def _bot_posts(n=40):
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     return [
         ProviderPost(
             post_id=str(i),
@@ -46,7 +46,7 @@ def test_botlike_high_score_and_signals():
 
 
 def test_low_activity_low_score():
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     posts = [
         ProviderPost(post_id=str(i), text=f"unique human thought number {i} about life",
                      created_at=base + timedelta(days=i * 2, hours=(i * 5) % 12 + 9))

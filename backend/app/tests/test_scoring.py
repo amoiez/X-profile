@@ -1,6 +1,6 @@
 """Unit tests for every automation-pattern scoring rule."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.analytics.scoring import (
     DISCLAIMER,
@@ -9,8 +9,8 @@ from app.analytics.scoring import (
     _score_duplicate,
     _score_frequency,
     _score_regularity,
-    _score_reply_repost,
     _score_repeated_links,
+    _score_reply_repost,
     compute_pattern_score,
 )
 from app.providers.base import ProviderPost
@@ -19,7 +19,7 @@ CFG = ScoringConfig()
 
 
 def _posts_with_gaps(minutes: float, count: int) -> list[ProviderPost]:
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     return [
         ProviderPost(post_id=str(i), text="x", created_at=base + timedelta(minutes=minutes * i))
         for i in range(count)
@@ -57,7 +57,7 @@ def test_regularity_zero_when_too_few_posts():
 
 
 def test_regularity_lower_for_irregular_gaps():
-    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     offsets = [0, 5, 400, 405, 1200, 1205, 3000]  # highly variable
     posts = [ProviderPost(post_id=str(i), text="x",
                           created_at=base + timedelta(minutes=o)) for i, o in enumerate(offsets)]
@@ -143,7 +143,7 @@ def test_botlike_scores_higher_than_human():
     bot = compute_pattern_score(posts=bot_posts, activity=bot_activity, content=bot_content)
 
     human_posts = [ProviderPost(post_id=str(i), text="x",
-                   created_at=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=i * 7 + (i % 3)))
+                   created_at=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=i * 7 + (i % 3)))
                    for i in range(12)]
     human_activity = {"posts_per_day": 3.0, "active_day_ratio": 0.4,
                       "hourly_distribution": [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,

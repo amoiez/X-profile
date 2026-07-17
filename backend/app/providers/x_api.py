@@ -9,7 +9,7 @@ and never logs the bearer token.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -38,7 +38,10 @@ logger = get_logger("provider.x_api")
 _USER_FIELDS = (
     "created_at,description,protected,verified,public_metrics,profile_image_url"
 )
-_TWEET_FIELDS = "created_at,lang,public_metrics,entities,referenced_tweets,in_reply_to_user_id,attachments,conversation_id"
+_TWEET_FIELDS = (
+    "created_at,lang,public_metrics,entities,referenced_tweets,"
+    "in_reply_to_user_id,attachments,conversation_id"
+)
 _MAX_PAGE = 100  # X API v2 cap per page for user tweets timeline
 
 
@@ -183,7 +186,7 @@ class XApiProvider(BaseXProvider):
                 remaining=int(resp.headers.get("x-rate-limit-remaining", 0)) or None,
                 reset_at=(
                     datetime.fromtimestamp(
-                        int(resp.headers["x-rate-limit-reset"]), tz=timezone.utc
+                        int(resp.headers["x-rate-limit-reset"]), tz=UTC
                     )
                     if resp.headers.get("x-rate-limit-reset")
                     else None
@@ -202,7 +205,7 @@ def _reset_seconds(resp: httpx.Response) -> int:
     if not reset:
         return 0
     try:
-        delta = int(reset) - int(datetime.now(timezone.utc).timestamp())
+        delta = int(reset) - int(datetime.now(UTC).timestamp())
         return max(0, delta)
     except ValueError:
         return 0
@@ -253,7 +256,7 @@ def _map_tweet(raw: dict) -> ProviderPost:
     return ProviderPost(
         post_id=str(raw["id"]),
         text=raw.get("text", ""),
-        created_at=_parse_dt(raw.get("created_at")) or datetime.now(timezone.utc),
+        created_at=_parse_dt(raw.get("created_at")) or datetime.now(UTC),
         lang=raw.get("lang"),
         post_type=_classify_type(raw),
         media_type=_classify_media(raw, urls),
