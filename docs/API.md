@@ -61,5 +61,9 @@ Delete a job and its results/reports (cascade).
 ### `POST /api/v1/analyses/{job_id}/refresh`
 Re-run analysis for the same username.
 
-### `GET /api/v1/analyses/{job_id}/report.pdf`  *(Milestone 5)*
-Download the generated PDF report.
+### `GET /api/v1/analyses/{job_id}/report.pdf`
+Generate (if needed) and download the PDF report for a completed job. Pass
+`?force=true` to regenerate. Returns `409` if the job is not completed. The
+15-section report includes profile overview, executive summary, activity,
+content, sentiment, engagement, pattern indicators, the automation-pattern
+score, methodology, data limitations, and the ethical-use disclaimer.

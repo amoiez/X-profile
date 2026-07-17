@@ -110,6 +110,22 @@ async def test_refresh_creates_new_job(client):
     assert rf.json()["username"] == "refresh_me"
 
 
+async def test_download_report_pdf(client):
+    r = await client.post("/api/v1/analyses", json={"username": "report_user", "post_limit": 60})
+    job_id = r.json()["id"]
+    pdf = await client.get(f"/api/v1/analyses/{job_id}/report.pdf")
+    assert pdf.status_code == 200
+    assert pdf.headers["content-type"] == "application/pdf"
+    assert pdf.content[:5] == b"%PDF-"
+
+
+async def test_report_rejected_for_failed_job(client):
+    r = await client.post("/api/v1/analyses", json={"username": "protected_demo"})
+    job_id = r.json()["id"]
+    pdf = await client.get(f"/api/v1/analyses/{job_id}/report.pdf")
+    assert pdf.status_code == 409
+
+
 async def test_progress_endpoint(client):
     r = await client.post("/api/v1/analyses", json={"username": "progress_user"})
     job_id = r.json()["id"]

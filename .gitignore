@@ -30,6 +30,12 @@ yarn-error.log*
 backend/reports_storage/
 storage/
 
+# Test artifacts
+backend/app/tests/_reports/
+backend/app/tests/_test.db
+backend/**/*.db
+backend/smoke.db
+
 # OS / editor
 .DS_Store
 Thumbs.db

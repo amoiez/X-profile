@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError, ErrorCode
@@ -15,7 +18,7 @@ from app.schemas.analysis import (
     ProgressResponse,
     ResultsResponse,
 )
-from app.services import job_service, queue
+from app.services import job_service, queue, report_service
 
 router = APIRouter(prefix="/analyses", tags=["analyses"])
 
@@ -126,6 +129,22 @@ async def list_analyses(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/{job_id}/report.pdf")
+async def download_report(
+    job_id: str,
+    force: bool = Query(False),
+    session: AsyncSession = Depends(get_session),
+) -> FileResponse:
+    path = await report_service.generate_pdf_for_job(session, job_id, force=force)
+    if not os.path.exists(path):
+        raise AppError(ErrorCode.NOT_FOUND, http_status=404)
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"x-behavior-report-{job_id[:8]}.pdf",
     )
 
 

@@ -14,6 +14,9 @@ _TEST_DB = pathlib.Path(__file__).parent / "_test.db"
 os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}")
 os.environ.setdefault("X_PROVIDER", "mock")
 os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault(
+    "REPORT_STORAGE_PATH", str((pathlib.Path(__file__).parent / "_reports").as_posix())
+)
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
