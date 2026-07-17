@@ -16,6 +16,10 @@ from datetime import datetime, timezone
 
 from app import METHODOLOGY_VERSION
 from app.analytics.activity import compute_activity_metrics
+from app.analytics.content import compute_content_metrics
+from app.analytics.engagement import compute_engagement_metrics
+from app.analytics.patterns import compute_pattern_metrics
+from app.analytics.sentiment import compute_sentiment_metrics
 from app.analytics.summarizer import build_summary
 from app.core.config import settings
 from app.core.errors import AppError, ErrorCode
@@ -41,15 +45,6 @@ from app.services.stages import (
 )
 
 logger = get_logger("runner")
-
-
-def _optional(module_path: str, attr: str):
-    """Import an analytics engine if present (Milestone 3), else None."""
-    try:
-        mod = __import__(module_path, fromlist=[attr])
-        return getattr(mod, attr)
-    except (ImportError, AttributeError):
-        return None
 
 
 async def run_job(job_id: str) -> None:
@@ -111,28 +106,39 @@ async def run_job(job_id: str) -> None:
                 session, job_id, stage=STAGE_ACTIVITY,
                 progress=STAGE_PROGRESS[STAGE_ACTIVITY],
             )
-            activity = compute_activity_metrics(posts, tz_name=job.timezone)
+            tz_name = job.timezone
+            activity = compute_activity_metrics(posts, tz_name=tz_name)
 
-            # --- optional engines (Milestone 3) ---
-            content = await _maybe_run(
-                session, job_id, STAGE_CONTENT,
-                _optional("app.analytics.content", "compute_content_metrics"),
-                posts,
+            # --- content (Milestone 3) ---
+            await job_service.update_progress(
+                session, job_id, stage=STAGE_CONTENT,
+                progress=STAGE_PROGRESS[STAGE_CONTENT],
             )
-            sentiment = await _maybe_run(
-                session, job_id, STAGE_SENTIMENT,
-                _optional("app.analytics.sentiment", "compute_sentiment_metrics"),
-                posts,
+            content = compute_content_metrics(posts)
+
+            # --- sentiment (Milestone 3) ---
+            await job_service.update_progress(
+                session, job_id, stage=STAGE_SENTIMENT,
+                progress=STAGE_PROGRESS[STAGE_SENTIMENT],
             )
-            engagement = await _maybe_run(
-                session, job_id, STAGE_ENGAGEMENT,
-                _optional("app.analytics.engagement", "compute_engagement_metrics"),
-                posts,
+            sentiment = compute_sentiment_metrics(posts)
+
+            # --- engagement (Milestone 3) ---
+            await job_service.update_progress(
+                session, job_id, stage=STAGE_ENGAGEMENT,
+                progress=STAGE_PROGRESS[STAGE_ENGAGEMENT],
             )
-            patterns = await _maybe_run_patterns(
-                session, job_id,
-                _optional("app.analytics.patterns", "compute_pattern_metrics"),
-                posts, activity, content,
+            engagement = compute_engagement_metrics(
+                posts, followers=profile.followers_count, tz_name=tz_name
+            )
+
+            # --- patterns + score (Milestone 3) ---
+            await job_service.update_progress(
+                session, job_id, stage=STAGE_PATTERNS,
+                progress=STAGE_PROGRESS[STAGE_PATTERNS],
+            )
+            patterns = compute_pattern_metrics(
+                posts=posts, activity=activity, content=content
             )
 
             # --- summary + data quality ---
@@ -186,24 +192,6 @@ async def run_job(job_id: str) -> None:
             logger.error("run_job_error", job_id=job_id, error=type(exc).__name__)
         finally:
             await provider.aclose()
-
-
-async def _maybe_run(session, job_id, stage, fn, posts):
-    if fn is None:
-        return None
-    await job_service.update_progress(
-        session, job_id, stage=stage, progress=STAGE_PROGRESS[stage]
-    )
-    return fn(posts)
-
-
-async def _maybe_run_patterns(session, job_id, fn, posts, activity, content):
-    if fn is None:
-        return None
-    await job_service.update_progress(
-        session, job_id, stage=STAGE_PATTERNS, progress=STAGE_PROGRESS[STAGE_PATTERNS]
-    )
-    return fn(posts=posts, activity=activity, content=content)
 
 
 def _as_utc(dt: datetime) -> datetime:
