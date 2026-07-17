@@ -15,17 +15,20 @@ produces a professional dashboard plus a downloadable PDF report.
 
 ## Status
 
-Built milestone by milestone. Current progress:
+Built milestone by milestone — **all milestones complete**:
 
 | Milestone | Scope | Status |
 |-----------|-------|--------|
-| 1 | Architecture, env, Docker, DB models, mock provider | ✅ Done |
-| 2 | Analysis job API, worker, activity analytics, tests | ⏳ Next |
-| 3 | Content, sentiment, engagement, pattern analysis | ⏳ |
-| 4 | Dashboard, charts, progress, history, error states | ⏳ |
-| 5 | PDF reports + real X API provider | ⏳ |
-| 6 | Auth, security hardening, rate limiting, CI/CD | ⏳ |
-| 7 | Production deployment docs + final QA | ⏳ |
+| 1 | Architecture, env, Docker, DB models, mock provider | ✅ |
+| 2 | Analysis job API, worker, activity analytics, tests | ✅ |
+| 3 | Content, sentiment, engagement, pattern analysis | ✅ |
+| 4 | Dashboard, charts, progress, history, error states | ✅ |
+| 5 | PDF reports + real X API provider | ✅ |
+| 6 | Auth, security hardening, rate limiting, CI/CD | ✅ |
+| 7 | Production deployment docs + final QA | ✅ |
+
+**Test status:** 104 backend tests (92.8% coverage on analytics+services),
+11 frontend tests, ruff + ESLint clean, Next.js build green.
 
 ## Architecture
 
@@ -95,11 +98,34 @@ pytest --cov=app           # with coverage
 All configuration is via environment variables — see [.env.example](.env.example).
 Secrets are never committed or logged.
 
+## Production deployment
+
+```bash
+cp .env.production.example .env      # fill strong secrets; set X_PROVIDER=x_api for real data
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose exec backend python -m app.scripts.seed_demo   # optional demo data
+```
+
+Nginx terminates TLS on 80/443. Full instructions — including Let's Encrypt,
+backups, restore, and rollback — are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Testing
+
+```bash
+# Backend
+cd backend && pytest                      # 104 tests
+pytest --cov=app/analytics --cov=app/services --cov-report=term-missing
+
+# Frontend
+cd frontend && npm run test && npm run typecheck && npm run build
+```
+
 ## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system design
 - [docs/API.md](docs/API.md) — API reference
-- `docs/DEPLOYMENT.md`, `docs/SECURITY.md` — added in later milestones
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — VPS deploy, backup/restore, rollback
+- [docs/SECURITY.md](docs/SECURITY.md) — security controls, privacy & ethical limitations
 
 ## License / use
 
