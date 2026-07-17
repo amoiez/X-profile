@@ -1,0 +1,94 @@
+# X Behavior Analyzer — full stack.
+#   docker compose up --build
+#
+# Runs entirely in demo mode by default (X_PROVIDER=mock). Set X_PROVIDER=x_api
+# and X_API_BEARER_TOKEN in .env to use real production data.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: xba
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xba_password}
+      POSTGRES_DB: xba
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xba"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xba:${POSTGRES_PASSWORD:-xba_password}@postgres:5432/xba
+      REDIS_URL: redis://redis:6379/0
+      REPORT_STORAGE_PATH: /app/reports_storage
+    volumes:
+      - reports:/app/reports_storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Apply migrations, then serve.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+
+  worker:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://xba:${POSTGRES_PASSWORD:-xba_password}@postgres:5432/xba
+      REDIS_URL: redis://redis:6379/0
+      REPORT_STORAGE_PATH: /app/reports_storage
+    volumes:
+      - reports:/app/reports_storage
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    command: ["python", "-m", "app.workers.run_worker"]
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  reports:
