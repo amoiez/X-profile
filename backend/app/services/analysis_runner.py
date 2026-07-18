@@ -28,7 +28,7 @@ from app.database.session import AsyncSessionLocal
 from app.models import AnalysisResult
 from app.models.analysis_job import JobStatus
 from app.providers import get_provider
-from app.providers.base import ProviderPost
+from app.providers.base import ProviderPost, ProviderProfile
 from app.services import job_service
 from app.services.stages import (
     STAGE_ACTIVITY,
@@ -192,6 +192,150 @@ async def run_job(job_id: str) -> None:
             logger.error("run_job_error", job_id=job_id, error=type(exc).__name__)
         finally:
             await provider.aclose()
+
+
+async def complete_supplied_job(
+    job_id: str,
+    *,
+    profile: ProviderProfile,
+    posts: list[ProviderPost],
+    data_source: str,
+) -> None:
+    """Complete a job from caller-supplied posts instead of a remote provider."""
+    async with AsyncSessionLocal() as session:
+        if not posts:
+            await job_service.mark_failed(
+                session,
+                job_id,
+                code=ErrorCode.NO_POSTS_AVAILABLE.value,
+                message="No posts were supplied for analysis.",
+            )
+            return
+
+        try:
+            await job_service.update_progress(
+                session, job_id, stage=STAGE_VALIDATING,
+                progress=STAGE_PROGRESS[STAGE_VALIDATING],
+            )
+            await _compute_and_store(
+                session,
+                job_id=job_id,
+                profile=profile,
+                posts=posts,
+                data_source=data_source,
+            )
+            logger.info("supplied_job_done", job_id=job_id, posts=len(posts))
+        except AppError as exc:
+            await job_service.mark_failed(
+                session, job_id, code=exc.code.value, message=exc.message
+            )
+        except Exception as exc:  # noqa: BLE001
+            await job_service.mark_failed(
+                session,
+                job_id,
+                code=ErrorCode.ANALYSIS_FAILED.value,
+                message="Analysis failed unexpectedly.",
+            )
+            logger.error("supplied_job_error", job_id=job_id, error=type(exc).__name__)
+
+
+async def _compute_and_store(
+    session,
+    *,
+    job_id: str,
+    profile: ProviderProfile,
+    posts: list[ProviderPost],
+    data_source: str,
+) -> None:
+    profile_row = await job_service.upsert_profile(session, profile)
+
+    job = await job_service.get_job(session, job_id)
+    if job is None:
+        return
+    job.profile_id = profile_row.id
+    job.data_source = data_source
+    job.actual_post_count = len(posts)
+    times = sorted(_as_utc(p.created_at) for p in posts)
+    job.period_start = times[0]
+    job.period_end = times[-1]
+    await session.commit()
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_ACTIVITY,
+        progress=STAGE_PROGRESS[STAGE_ACTIVITY],
+    )
+    tz_name = job.timezone
+    activity = compute_activity_metrics(posts, tz_name=tz_name)
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_CONTENT,
+        progress=STAGE_PROGRESS[STAGE_CONTENT],
+    )
+    content = compute_content_metrics(posts)
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_SENTIMENT,
+        progress=STAGE_PROGRESS[STAGE_SENTIMENT],
+    )
+    sentiment = compute_sentiment_metrics(posts)
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_ENGAGEMENT,
+        progress=STAGE_PROGRESS[STAGE_ENGAGEMENT],
+    )
+    engagement = compute_engagement_metrics(
+        posts, followers=profile.followers_count, tz_name=tz_name
+    )
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_PATTERNS,
+        progress=STAGE_PROGRESS[STAGE_PATTERNS],
+    )
+    patterns = compute_pattern_metrics(
+        posts=posts, activity=activity, content=content
+    )
+
+    await job_service.update_progress(
+        session, job_id, stage=STAGE_SUMMARY,
+        progress=STAGE_PROGRESS[STAGE_SUMMARY],
+    )
+    data_quality = _build_data_quality(profile, posts, activity, data_source)
+    data_quality["is_imported"] = data_source == "import"
+    if data_source == "import":
+        data_quality["missing_metrics"].append(
+            "Accuracy depends on the completeness of the imported CSV."
+        )
+    summary = build_summary(
+        profile=profile.to_public_dict(),
+        activity=activity,
+        content=content,
+        sentiment=sentiment,
+        engagement=engagement,
+        patterns=patterns,
+        data_quality=data_quality,
+    )
+
+    result = AnalysisResult(
+        job_id=job_id,
+        activity_metrics=activity,
+        content_metrics=content or {},
+        sentiment_metrics=sentiment or {},
+        engagement_metrics=engagement or {},
+        pattern_metrics=patterns or {},
+        summary=summary,
+        data_quality=data_quality,
+        methodology_version=METHODOLOGY_VERSION,
+    )
+    session.add(result)
+
+    job = await job_service.get_job(session, job_id)
+    if job is None:
+        return
+    job.status = JobStatus.COMPLETED.value
+    job.current_stage = STAGE_DONE
+    job.progress = STAGE_PROGRESS[STAGE_DONE]
+    job.completed_at = datetime.now(UTC)
+    await session.commit()
 
 
 def _as_utc(dt: datetime) -> datetime:

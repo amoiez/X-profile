@@ -40,8 +40,11 @@ _USER_FIELDS = (
 )
 _TWEET_FIELDS = (
     "created_at,lang,public_metrics,entities,referenced_tweets,"
-    "in_reply_to_user_id,attachments,conversation_id"
+    "in_reply_to_user_id,attachments,conversation_id,author_id"
 )
+_MEDIA_FIELDS = "type,url,preview_image_url,public_metrics"
+_POLL_FIELDS = "duration_minutes,end_datetime,id,options,voting_status"
+_TWEET_EXPANSIONS = "attachments.media_keys,attachments.poll_ids"
 _MAX_PAGE = 100  # X API v2 cap per page for user tweets timeline
 
 
@@ -113,7 +116,9 @@ class XApiProvider(BaseXProvider):
             params = {
                 "max_results": page_size,
                 "tweet.fields": _TWEET_FIELDS,
-                "exclude": "",  # keep replies/retweets so we can classify them
+                "expansions": _TWEET_EXPANSIONS,
+                "media.fields": _MEDIA_FIELDS,
+                "poll.fields": _POLL_FIELDS,
             }
             if pagination_token:
                 params["pagination_token"] = pagination_token
@@ -121,8 +126,15 @@ class XApiProvider(BaseXProvider):
             data = await self._request(
                 "GET", f"/users/{profile.platform_user_id}/tweets", params=params
             )
+            includes = data.get("includes", {}) or {}
+            media_by_key = {
+                m.get("media_key"): m
+                for m in includes.get("media", []) or []
+                if m.get("media_key")
+            }
+
             for raw in data.get("data", []) or []:
-                collected.append(_map_tweet(raw))
+                collected.append(_map_tweet(raw, media_by_key))
                 if len(collected) >= limit:
                     break
 
@@ -232,18 +244,29 @@ def _classify_type(raw: dict) -> PostType:
     return "original"
 
 
-def _classify_media(raw: dict, urls: list[str]) -> MediaType:
+def _classify_media(raw: dict, urls: list[str], media_by_key: dict[str, dict]) -> MediaType:
     attachments = raw.get("attachments") or {}
     if attachments.get("poll_ids"):
         return "poll"
+    media_types = {
+        (media_by_key.get(key) or {}).get("type")
+        for key in attachments.get("media_keys", []) or []
+    }
+    if "video" in media_types:
+        return "video"
+    if "animated_gif" in media_types:
+        return "gif"
+    if "photo" in media_types:
+        return "image"
     if attachments.get("media_keys"):
-        return "image"  # exact media type needs expansions; default to image
+        return "image"
     if urls:
         return "link"
     return "none"
 
 
-def _map_tweet(raw: dict) -> ProviderPost:
+def _map_tweet(raw: dict, media_by_key: dict[str, dict] | None = None) -> ProviderPost:
+    media_by_key = media_by_key or {}
     pm = raw.get("public_metrics", {}) or {}
     entities = raw.get("entities", {}) or {}
     hashtags = [h.get("tag") for h in entities.get("hashtags", []) if h.get("tag")]
@@ -259,7 +282,7 @@ def _map_tweet(raw: dict) -> ProviderPost:
         created_at=_parse_dt(raw.get("created_at")) or datetime.now(UTC),
         lang=raw.get("lang"),
         post_type=_classify_type(raw),
-        media_type=_classify_media(raw, urls),
+        media_type=_classify_media(raw, urls, media_by_key),
         like_count=pm.get("like_count", 0),
         reply_count=pm.get("reply_count", 0),
         repost_count=pm.get("retweet_count", 0),

@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   description:
     "Analyze observable public posting patterns of any public X profile. " +
     "Reports observable behavior only — not personality, intent, or identity.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

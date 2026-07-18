@@ -130,12 +130,14 @@ async def test_get_user_posts_paginates_and_maps():
                     "data": [
                         {"id": "1", "text": "hello #ai @bob http://example.com",
                          "created_at": "2026-01-01T00:00:00.000Z", "lang": "en",
+                         "attachments": {"media_keys": ["7_abc"]},
                          "public_metrics": {"like_count": 5, "reply_count": 1,
                                             "retweet_count": 2, "quote_count": 0},
                          "entities": {"hashtags": [{"tag": "ai"}],
                                       "mentions": [{"username": "bob"}],
                                       "urls": [{"expanded_url": "http://example.com"}]}},
                     ],
+                    "includes": {"media": [{"media_key": "7_abc", "type": "video"}]},
                     "meta": {"next_token": "TOKEN2"},
                 })
             return httpx.Response(200, json={
@@ -154,4 +156,5 @@ async def test_get_user_posts_paginates_and_maps():
     assert posts[0].hashtags == ["ai"]
     assert posts[0].mentions == ["bob"]
     assert posts[0].like_count == 5
+    assert posts[0].media_type == "video"
     assert posts[1].post_type == "repost"

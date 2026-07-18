@@ -64,9 +64,20 @@ export interface CreateAnalysisInput {
   force_refresh?: boolean;
 }
 
+export interface CreateImportedAnalysisInput {
+  username: string;
+  csv_text: string;
+  timezone?: string;
+  display_name?: string;
+  followers_count?: number;
+}
+
 export const api = {
   createAnalysis: (input: CreateAnalysisInput) =>
     request<JobSummary>("/analyses", { method: "POST", body: JSON.stringify(input) }),
+
+  createImportedAnalysis: (input: CreateImportedAnalysisInput) =>
+    request<JobSummary>("/analyses/import", { method: "POST", body: JSON.stringify(input) }),
 
   getJob: (id: string) => request<JobSummary>(`/analyses/${id}`),
 

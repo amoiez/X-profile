@@ -140,6 +140,7 @@ export interface DataQuality {
   methodology_version: string;
   data_source: string;
   is_mock: boolean;
+  is_imported?: boolean;
   generated_at: string;
   low_confidence: boolean;
   low_confidence_threshold: number;

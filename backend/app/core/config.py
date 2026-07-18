@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     x_cache_ttl_seconds: int = 3600
     x_request_timeout_seconds: int = 15
     x_max_retries: int = 3
+    allow_arbitrary_mock_profiles: bool = False
 
     # --- Auth ---
     jwt_secret_key: str = "change-me-jwt"

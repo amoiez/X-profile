@@ -35,6 +35,8 @@ RESERVED: dict[str, str] = {
     "suspended_demo": "suspended",
     "empty_demo": "empty",
 }
+SHOWCASE_USERNAMES = {"news_bot", "sample_user", "coffee_lover"}
+DEMO_USERNAMES = tuple(sorted(set(RESERVED) | SHOWCASE_USERNAMES))
 
 # Topic vocab used to synthesize believable content.
 _TOPICS = {
@@ -52,6 +54,10 @@ def _seed_for(username: str) -> int:
     normalized = username.lstrip("@").lower()
     digest = hashlib.sha256(normalized.encode()).hexdigest()
     return int(digest[:12], 16)
+
+
+def is_demo_username(username: str) -> bool:
+    return username.lstrip("@").lower() in set(DEMO_USERNAMES)
 
 
 class MockXProvider(BaseXProvider):

@@ -27,6 +27,19 @@ class AnalysisCreateRequest(BaseModel):
         return normalize_username(v)
 
 
+class ImportedAnalysisRequest(BaseModel):
+    username: str = Field(..., max_length=64, examples=["@example"])
+    csv_text: str = Field(..., min_length=1, max_length=1_000_000)
+    timezone: str = Field(default=settings.default_timezone, max_length=64)
+    display_name: str | None = Field(default=None, max_length=255)
+    followers_count: int | None = Field(default=None, ge=0)
+
+    @field_validator("username")
+    @classmethod
+    def _validate_username(cls, v: str) -> str:
+        return normalize_username(v)
+
+
 class JobSummary(BaseModel):
     id: str
     username: str

@@ -123,6 +123,20 @@ def generate_report_pdf(report: dict, output_path: str) -> str:
     patterns = report.get("pattern_metrics", {})
     summary = report.get("summary", {})
     dq = report.get("data_quality", {})
+    source_label = (
+        "Imported CSV"
+        if dq.get("is_imported")
+        else "Mock (demonstration data)"
+        if dq.get("is_mock")
+        else "Official X API"
+    )
+    source_description = (
+        "imported CSV data"
+        if dq.get("is_imported")
+        else "mock demonstration data"
+        if dq.get("is_mock")
+        else "the official X API"
+    )
 
     username = profile.get("username") or job.get("username", "unknown")
     story: list = []
@@ -136,7 +150,7 @@ def generate_report_pdf(report: dict, output_path: str) -> str:
         ("Analysis generated", _fmt_dt(dq.get("generated_at"))),
         ("Data period covered", f"{_fmt_dt(dq.get('earliest_post'))}  →  {_fmt_dt(dq.get('latest_post'))}"),
         ("Posts analyzed", str(dq.get("post_count", activity.get("post_count", 0)))),
-        ("Data source", "Mock (demonstration data)" if dq.get("is_mock") else "Official X API"),
+        ("Data source", source_label),
         ("Detected language", dq.get("detected_language") or "—"),
         ("Methodology version", dq.get("methodology_version", "—")),
         ("Confidence", "LOW — insufficient data" if dq.get("low_confidence") else "Standard"),
@@ -254,7 +268,7 @@ def generate_report_pdf(report: dict, output_path: str) -> str:
     story.append(Paragraph("Methodology", s["XH2"]))
     story.append(Paragraph(
         "Public profile and post data were retrieved through the configured provider "
-        f"({'mock demonstration data' if dq.get('is_mock') else 'the official X API'}). "
+        f"({source_description}). "
         "Activity, content, sentiment (English VADER lexicon), engagement, and pattern "
         "metrics were computed deterministically. The automation-pattern score is the "
         "sum of six independently-capped, individually-explained components; thresholds "

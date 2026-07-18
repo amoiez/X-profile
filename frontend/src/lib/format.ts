@@ -34,7 +34,8 @@ export const ERROR_HINTS: Record<string, string> = {
   PROFILE_PROTECTED: "This profile is protected, so its posts cannot be analyzed.",
   PROFILE_SUSPENDED: "This account is suspended or unavailable.",
   NO_POSTS_AVAILABLE: "This profile has no public posts to analyze.",
-  CREDENTIALS_MISSING: "X API credentials are not configured on the server.",
+  CREDENTIALS_MISSING:
+    "Live X data is not configured. Add an X API bearer token, or use demo usernames: sample_user, coffee_lover, news_bot, empty_demo.",
   RATE_LIMITED: "The X API rate limit was reached. Try again shortly.",
   UNSUPPORTED_LANGUAGE: "The detected language isn't supported for full analysis.",
   ANALYSIS_FAILED: "The analysis could not be completed.",

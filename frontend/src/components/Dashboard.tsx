@@ -83,7 +83,9 @@ export function Dashboard({ data }: { data: ResultsResponse }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {dq.is_mock ? (
+          {dq.is_imported ? (
+            <Badge tone="accent">Imported CSV data</Badge>
+          ) : dq.is_mock ? (
             <Badge tone="warning">Demonstration data (mock)</Badge>
           ) : (
             <Badge tone="positive">Live X API data</Badge>
@@ -201,7 +203,7 @@ export function Dashboard({ data }: { data: ResultsResponse }) {
             <li>Posts analyzed: <strong>{dq.post_count}</strong></li>
             <li>Data period: {formatDate(dq.earliest_post)} → {formatDate(dq.latest_post)}</li>
             <li>Detected language: {dq.detected_language || "—"}</li>
-            <li>Data source: {dq.is_mock ? "Mock (demonstration)" : "X API"}</li>
+            <li>Data source: {dq.is_imported ? "Imported CSV" : dq.is_mock ? "Mock (demonstration)" : "X API"}</li>
           </ul>
           <ul className="space-y-1">
             <li>Methodology version: {dq.methodology_version}</li>

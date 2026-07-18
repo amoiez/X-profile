@@ -7,12 +7,20 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { api, type CreateAnalysisInput } from "./api";
+import { api, type CreateAnalysisInput, type CreateImportedAnalysisInput } from "./api";
 
 export function useCreateAnalysis() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateAnalysisInput) => api.createAnalysis(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["analyses"] }),
+  });
+}
+
+export function useCreateImportedAnalysis() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateImportedAnalysisInput) => api.createImportedAnalysis(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["analyses"] }),
   });
 }

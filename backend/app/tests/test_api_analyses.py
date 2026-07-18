@@ -30,10 +30,54 @@ async def test_create_and_get_results(client):
     assert "headline" in body["summary"]
 
 
+async def test_import_csv_analysis(client):
+    csv_text = (
+        "created_at,text,like_count,reply_count,repost_count,quote_count\n"
+        "2026-07-18T10:00:00Z,\"Building in public #ai\",10,2,3,1\n"
+        "2026-07-17T09:30:00Z,\"Another update @team\",8,1,2,0\n"
+    )
+    r = await client.post(
+        "/api/v1/analyses/import",
+        json={"username": "imported_user", "csv_text": csv_text},
+    )
+
+    assert r.status_code == 202, r.text
+    job_id = r.json()["id"]
+    assert r.json()["status"] == "completed"
+
+    results = await client.get(f"/api/v1/analyses/{job_id}/results")
+    body = results.json()
+    assert body["data_quality"]["data_source"] == "import"
+    assert body["data_quality"]["is_imported"] is True
+    assert body["activity_metrics"]["post_count"] == 2
+
+
+async def test_import_csv_requires_dates(client):
+    csv_text = "text,like_count\n\"No timestamp\",10\n"
+    r = await client.post(
+        "/api/v1/analyses/import",
+        json={"username": "imported_user", "csv_text": csv_text},
+    )
+
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
 async def test_invalid_username_rejected(client):
     r = await client.post("/api/v1/analyses", json={"username": "bad handle!"})
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "INVALID_USERNAME"
+
+
+async def test_arbitrary_username_rejected_in_restricted_mock_mode(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "allow_arbitrary_mock_profiles", False)
+
+    r = await client.post("/api/v1/analyses", json={"username": "real_handle"})
+
+    assert r.status_code == 503
+    assert r.json()["error"]["code"] == "CREDENTIALS_MISSING"
 
 
 async def test_post_limit_bounds(client):

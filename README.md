@@ -29,7 +29,8 @@ behavior**, and produces a professional dashboard plus a downloadable PDF report
   six explained components; never a black box, always with a "not proof of a
   bot" disclaimer.
 - 🧪 **Demo mode with zero credentials** — a deterministic mock provider powers
-  local dev, tests, and demos; swap to the real X API with one env var.
+  local dev, tests, and demos for explicit demo usernames; configure the real X
+  API for accurate live profile analysis.
 - 🔐 **Optional auth**, per-IP rate limiting, security headers, SSRF-safe PDF
   rendering, and structured JSON logging.
 
@@ -74,13 +75,16 @@ Nginx (reverse proxy, security headers, TLS)
 - `XApiProvider` — real production data via the official X API v2 (timeouts,
   backoff, 429 handling, pagination, error mapping, no token logging).
 
-If `X_PROVIDER=x_api` but no bearer token is set, the app **automatically falls
-back to mock mode** so it always runs.
+If live X data is requested without a bearer token, the app reports that
+credentials are missing instead of generating real-looking synthetic data. Mock
+mode is restricted to explicit demo usernames by default. Set
+`ALLOW_ARBITRARY_MOCK_PROFILES=true` only when you intentionally want synthetic
+data for arbitrary handles.
 
 ## Quick start (Docker, demo mode)
 
 ```bash
-cp .env.example .env          # defaults to X_PROVIDER=mock (no credentials)
+cp .env.example .env          # demo mode, explicit demo usernames only
 docker compose up --build
 ```
 
@@ -90,6 +94,27 @@ docker compose up --build
 
 Docker Compose starts all six services: **frontend, backend, worker,
 PostgreSQL, Redis, Nginx**.
+
+## Free import mode (no X API key)
+
+For accurate analysis without paid X API access, paste a CSV export into the
+import box on the Analyze page. The app analyzes only the posts you provide,
+so results are as accurate as that file.
+
+Required columns:
+
+```csv
+created_at,text
+2026-07-18T10:00:00Z,"Post text #topic"
+```
+
+Optional columns improve the report:
+
+```csv
+like_count,reply_count,repost_count,quote_count,lang,post_type,media_type,hashtags,mentions,urls
+```
+
+CSV import never contacts X and does not require credentials.
 
 ## Local development (without Docker)
 

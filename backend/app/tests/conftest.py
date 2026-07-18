@@ -13,6 +13,7 @@ import pathlib
 _TEST_DB = pathlib.Path(__file__).parent / "_test.db"
 os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_TEST_DB.as_posix()}")
 os.environ.setdefault("X_PROVIDER", "mock")
+os.environ.setdefault("ALLOW_ARBITRARY_MOCK_PROFILES", "true")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault(
     "REPORT_STORAGE_PATH", str((pathlib.Path(__file__).parent / "_reports").as_posix())
